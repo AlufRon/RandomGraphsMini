@@ -81,7 +81,7 @@ def run_case(num_trials, c, k, p_fn, theoretical_fn, lambda_=None, isLambdaN=Non
 
 def main():
     num_trials = 5  # Define the number of trials for each case
-    k = 4  # Define the number of largest components to consider
+    k = 5  # Define the number of largest components to consider
 
     # Define the probability calculation functions for each case
     p_fn_case1 = lambda n, c, lambda_: c / n
