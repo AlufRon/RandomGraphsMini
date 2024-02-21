@@ -1,13 +1,11 @@
+from collections import deque
 import networkx as nx
 import numpy as np
+import matplotlib.pyplot as plt
 import random
-import random
-import itertools
-from networkx.generators.random_graphs import erdos_renyi_graph
-import matplotlib
+from matplotlib.backends.backend_pdf import PdfPages
 
-
-def generate_random_graph_binomial(n, p):
+def generate_random_graph(n, p):
     mean = n * (n - 1) // 2 * p
     variance = n * (n - 1) // 2 * p * (1 - p)
     M = np.random.normal(mean, np.sqrt(variance))
@@ -15,182 +13,93 @@ def generate_random_graph_binomial(n, p):
     G = nx.gnm_random_graph(n, M)
     return G
 
+def find_connected_components(graph):
+    component_sizes = [len(c) for c in nx.connected_components(graph)]
+    return component_sizes
 
-def getEpsilon(n):
-    return np.power(n, (-1 / 3))
+def theoretical_case_1(n):
+    return 2.5 * np.log(n)
 
+def theoretical_case_2(n, lambda_):
+    return n ** (2 / 3)
 
-def connected_components_info(G):
-    connected_components = nx.connected_components(G)
+def theoretical_case_3(n, lambda_):
+    return n ** (2 / 3)
 
-    component_sizes = []
+def theoretical_case_4_L1(n):
+    return n ** (1 / 3)
 
-    for component in connected_components:
-        component_sizes.append(len(component))
+def theoretical_case_4_L2(n):
+    return n ** (1 / 3)
 
-    return len(component_sizes), component_sizes
+def theoretical_case_5(n, c):
+    from scipy.optimize import fsolve
+    y = fsolve(lambda y: np.exp(-c * y) - 1 / y, 1)[0]
+    return y * n
 
-
-import numpy as np
-import networkx as nx
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-from scipy.optimize import fsolve
-from collections import Counter
-
-
-# Graph class
-class Graph:
-    def __init__(self, n, p):
-        self.n = n
-        self.p = p
-        self.graph = self.generate_random_graph()
-
-    def generate_random_graph(self):
-        return generate_random_graph_binomial(self.n, self.p)
-
-
-# BFS function
-def BFS(graph, start):
-    visited = set()
-    queue = [start]
-    while queue:
-        vertex = queue.pop(0)
-        if vertex not in visited:
-            visited.add(vertex)
-            queue.extend(set(graph[vertex]) - visited)
-    return visited
-
-
-# Helper functions
-def get_connectivity_components(graph):
-    nodes = set(graph.nodes)
-    connectivity_components = []
-    while nodes:
-        start_node = nodes.pop()
-        component = BFS(graph, start_node)
-        connectivity_components.append(component)
-        nodes -= component
-    return connectivity_components
-
-
-def plot_connectivity_components(connectivity_components, n, case):
-    sizes = sorted([len(component) for component in connectivity_components])
-    plt.figure()
-    plt.plot(sizes, '-o')
-    plt.title(f'Case {case}: Sizes of connectivity components')
-    plt.xlabel('Index of connectivity component')
-    plt.ylabel('Size of connectivity component')
-    plt.savefig(f'{case}_{n}.png')
-    plt.close()
-
-
-def compute_conjecture(case, n):
-    if case == 'Very Subcritical':
-        return np.log(n)
-    elif case == 'Barely Subcritical':
-        return np.log(n)
-    elif case == 'Critical Window':
-        return n ** (2 / 3)
-    elif case == 'Barely Supercritical':
-        return 2 * 0.01 * n * n ** (2 / 3)
-    elif case == 'Very Supercritical':
-        return fsolve(lambda y: np.exp(-2 * y) - 1 / y, 0.5) * n
-    else:
-        return None
-
-
-def plot_connectivity_components_by_n(n_values, p_func):
-    num_components = []  # Store the number of components for each n
-    largest_component_sizes = []  # Store the size of the largest component for each n
-    top_5_component_sizes = [[] for _ in range(5)]  # Store the sizes of the top 5 components for each n
-
-    for n in n_values:
-        p = p_func(n)
-        G = generate_random_graph_binomial(n, p)
-        num_components_current, component_sizes_current = connected_components_info(G)
-        largest_component_size = max(component_sizes_current)
-
-        num_components.append(num_components_current)
-        largest_component_sizes.append(largest_component_size)
-
-        # Sort the component sizes and get the top 5
-        component_sizes_current.sort(reverse=True)
-        for i in range(5):
-            if i < len(component_sizes_current):
-                top_5_component_sizes[i].append(component_sizes_current[i])
-            else:
-                top_5_component_sizes[i].append(0)  # If there are less than 5 components, fill with 0
-
+def plot_component_sizes(n_values, k_largest_component_sizes, theoretical_fn, d, lambda_=None, case_name=None, pdf_pages=None):
     plt.figure(figsize=(10, 6))
-    plt.plot(n_values, num_components, label="Number of Components")
-    plt.plot(n_values, largest_component_sizes, label="Size of Largest Component")
-
-    # Plot the sizes of the top 5 components
-    for i in range(5):
-        plt.plot(n_values, top_5_component_sizes[i], label=f"Size of {i + 1}th Largest Component")
-
-    plt.xlabel("Number of Nodes (n)")
-    plt.ylabel("Number of Components/Size")
-    plt.title(f"Connected Components in Random Graphs")
+    for i, component_sizes in enumerate(k_largest_component_sizes, start=1):
+        plt.plot(n_values, component_sizes, 'o-', label=f'{i} Largest Component')
+    if lambda_ is not None:
+        plt.plot(n_values, [d * theoretical_fn(n, lambda_) for n in n_values], 'r-', label='Theoretical')
+    else:
+        plt.plot(n_values, [d * theoretical_fn(n) for n in n_values], 'r-', label='Theoretical')
+    plt.xlabel('Number of Nodes')
+    plt.ylabel('Component Size')
     plt.legend()
     plt.grid(True)
-    plt.show()
+    plt.title(f'Number of Nodes vs. Component Size ({case_name})')
+    if pdf_pages is not None:
+        pdf_pages.savefig()
+    else:
+        plt.show()
 
+def run_case(num_trials, c, k, p_fn, theoretical_fn, lambda_=None, isLambdaN=None, case_name=None, pdf_pages=None):
+    n_values = range(10000, 100000, 10000)  # Adjust as needed
+    k_largest_component_sizes = [[] for _ in range(k)]  # Initialize list of lists
 
-# Define your p function
-def p_func(n):
-    epsilon = getEpsilon(n)
-    return (1 / n) + epsilon
+    for n in n_values:
+        component_sizes_trials = [[] for _ in range(k)]  # Initialize list of lists for each trial
 
+        for _ in range(num_trials):
+            if isLambdaN:
+                lambda_ = n ** 0.01
+            p = p_fn(n, c, lambda_)  # Calculate p based on the provided function
+            graph = generate_random_graph(n, p)
+            component_sizes = sorted(find_connected_components(graph), reverse=True)  # Sort in descending order
+            for i in range(k):
+                if i < len(component_sizes):  # Check if there is an i-th component
+                    component_sizes_trials[i].append(component_sizes[i])  # Get the size of the i-th largest component
+                else:
+                    component_sizes_trials[i].append(0)  # If there is no i-th component, append 0
 
-# Call the function with your desired range of n values
-plot_connectivity_components_by_n(range(100000, 1000001, 100000), p_func)
+        for i in range(k):
+            k_largest_component_sizes[i].append(np.mean(component_sizes_trials[i]))  # Average over trials
 
+    plot_component_sizes(n_values, k_largest_component_sizes, theoretical_fn, 1, lambda_, case_name, pdf_pages)
 
-# def generate_random_graph_random_sample(n, p):
-#     all_edges = list(itertools.combinations(range(n), 2))
-#
-#     M = int(p * n * (n - 1) / 2)
-#
-#     edges = random.sample(all_edges, M)
-#
-#     graph = [[0] * n for _ in range(n)]
-#
-#     for i, j in edges:
-#         graph[i][j] = graph[j][i] = 1
-#
-#     return graph
-#
+def main():
+    num_trials = 5  # Define the number of trials for each case
+    k = 4  # Define the number of largest components to consider
 
+    # Define the probability calculation functions for each case
+    p_fn_case1 = lambda n, c, lambda_: c / n
+    p_fn_case2 = lambda n, c, lambda_: (1 / n) - (lambda_ / n ** (4 / 3))
+    p_fn_case3 = lambda n, c, lambda_: (1 / n) + (lambda_ / n ** (4 / 3))
+    p_fn_case4 = lambda n, c, lambda_: 1 / n
+    #p_fn_case5 = lambda n, c, lambda_: (1 + c) / n
 
-#
-# def generate_random_graph(n, M):
-#     graph = [[0] * n for _ in range(n)]
-#
-#     for _ in range(M):
-#         while True:
-#             i, j = random.randint(0, n - 1), random.randint(0, n - 1)
-#             # Ensure the edge is not a self-loop and does not already exist
-#             if i != j and graph[i][j] == 0:
-#                 break
-#         graph[i][j] = graph[j][i] = 1
-#
-#     return graph
-#
-#
-# import random
-#
-#
-def generate_random_graph(n, M):
-    graph = [[0] * n for _ in range(n)]
+    with PdfPages('output.pdf') as pdf_pages:
+        # Run each case
+        run_case(num_trials, 0.5, k, p_fn_case1, theoretical_case_1, case_name='Case 1 -', pdf_pages=pdf_pages)
+        run_case(num_trials, 1.5, k, p_fn_case1, theoretical_case_1, case_name='Case 1 +', pdf_pages=pdf_pages)
+        run_case(num_trials, 0, k, p_fn_case2, theoretical_case_2, 0.01, case_name='Case 2 - lambda', pdf_pages=pdf_pages)
+        run_case(num_trials, 0, k, p_fn_case3, theoretical_case_3, 0.01, case_name='Case 3 + lambda', pdf_pages=pdf_pages)
+        run_case(num_trials, 0, k, p_fn_case2, theoretical_case_2, 0, True, case_name='Case 2 - lambda n', pdf_pages=pdf_pages)
+        run_case(num_trials, 0, k, p_fn_case3, theoretical_case_3, 0, True, case_name='Case 3 + lambda n', pdf_pages=pdf_pages)
+        run_case(num_trials, 0.01, k, p_fn_case4, theoretical_case_4_L1, case_name='Case 4', pdf_pages=pdf_pages)
+        #run_case(num_trials, 1.5, k, p_fn_case5, theoretical_case_5, case_name='Case 5', pdf_pages=pdf_pages)
 
-    for _ in range(M):
-        while True:
-            i, j = random.randint(0, n - 1), random.randint(0, n - 1)
-            # Ensure the edge is not a self-loop and does not already exist
-            if i != j and graph[i][j] == 0:
-                break
-        graph[i][j] = graph[j][i] = 1
-
-    return graph
+if __name__ == "__main__":
+    main()
