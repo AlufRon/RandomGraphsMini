@@ -38,7 +38,8 @@ def theoretical_case_4_L1(n, lambda_):
 
 def theoretical_case_4_L2(n, lambda_):
     n_lambda_ = n ** lambda_
-    return (n ** (2 / 3)) * (n_lambda_ ** -2) * (np.log(n_lambda_))
+    return ((n ** 0.01) ** -2) * (n ** (2/3)) * np.log(n ** 0.01)
+
 
 
 def theoretical_case_5_L1(n):
@@ -51,11 +52,15 @@ def theoretical_case_5_L2(n):
     return np.log(n)
 
 
+
 def plot_component_sizes(n_values, k_largest_component_sizes, theoretical_fn, d, lambda_=None, case_name=None,
-                         pdf_pages=None):
+                         pdf_pages=None, k_th_component=None):
     plt.figure(figsize=(10, 6))
     for i, component_sizes in enumerate(k_largest_component_sizes, start=1):
-        plt.plot(n_values, component_sizes, 'o-', label=f'{i} Largest Component')
+        if k_th_component is not None:
+            plt.plot(n_values, component_sizes, 'o-', label=f'{k_th_component} Largest Component')
+        else:
+            plt.plot(n_values, component_sizes, 'o-', label=f'{i} Largest Component')
     if lambda_ is not None:
         plt.plot(n_values, [d * theoretical_fn(n, lambda_) for n in n_values], 'r-', label='Theoretical')
     else:
@@ -70,11 +75,10 @@ def plot_component_sizes(n_values, k_largest_component_sizes, theoretical_fn, d,
     else:
         plt.show()
 
-
+ 
 def run_case(num_trials, c, k, p_fn, theoretical_fn, lambda_=None, isLambdaN=None, case_name=None, pdf_pages=None, k_th_component=None):
-    n_values = range(10000, 100000, 10000)
+    n_values = range(100000, 1000000, 100000)
     k_largest_component_sizes = [[] for _ in range(k)]
-
     for n in n_values:
         component_sizes_trials = [[] for _ in range(k)]
 
@@ -93,11 +97,10 @@ def run_case(num_trials, c, k, p_fn, theoretical_fn, lambda_=None, isLambdaN=Non
         for i in range(k):
             k_largest_component_sizes[i].append(np.mean(component_sizes_trials[i]))
 
-        if k_th_component:
-            plot_component_sizes(n_values, [k_largest_component_sizes[k_th_component]], theoretical_fn, 1, lambda_, case_name, pdf_pages)
-            return
+    if k_th_component:
+        plot_component_sizes(n_values, [k_largest_component_sizes[k_th_component - 1]], theoretical_fn, 1, lambda_, case_name, pdf_pages, k_th_component)
+        return
     plot_component_sizes(n_values, k_largest_component_sizes, theoretical_fn, 1, lambda_, case_name, pdf_pages)
-
 
 def main():
     num_trials = 5
